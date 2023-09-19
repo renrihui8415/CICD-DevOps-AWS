@@ -1,0 +1,62 @@
+# buildspec.yml
+version: 0.2
+env:
+  variables:
+    # ACTION is passed in as an environment variable
+    ACTION: $ACTION
+
+phases:     
+  build:
+    on-failure: ABORT
+    commands:
+      - cd ${CODEBUILD_SRC_DIR} 
+      - |-
+        echo "ACTION: ${ACTION}"
+        if [ "${ACTION}" = "VALIDATE" ] ; then
+
+          terraform init
+          terraform validate
+
+        elif [ "${ACTION}" = "PLAN" ] ; then
+          
+          SECRET_KEY=$(echo "$SECRET" | jq -r '.["'"$secret_Key"'"]')
+          SECRET_VALUE=$(echo "$SECRET" | jq -r '.["'"$secret_Value"'"]')
+          
+          # to configure AWS 
+          aws configure set aws_access_key_id $SECRET_KEY
+          aws configure set aws_secret_access_key $SECRET_VALUE
+          aws configure set region $AWS_DEFAULT_REGION
+
+          terraform init
+          terraform plan -out=terraformplan 
+
+        elif [ "${ACTION}" = "APPLY" ] ; then
+
+          SECRET_KEY=$(echo "$SECRET" | jq -r '.["'"$secret_Key"'"]')
+          SECRET_VALUE=$(echo "$SECRET" | jq -r '.["'"$secret_Value"'"]')
+
+          # to configure AWS 
+          aws configure set aws_access_key_id $SECRET_KEY
+          aws configure set aws_secret_access_key $SECRET_VALUE
+          aws configure set region $AWS_DEFAULT_REGION
+
+          terraform init
+          terraform apply -auto-approve "terraformplan"
+
+        elif [ "${ACTION}" = "DESTROY" ] ; then
+
+          SECRET_KEY=$(echo "$SECRET" | jq -r '.["'"$secret_Key"'"]')
+          SECRET_VALUE=$(echo "$SECRET" | jq -r '.["'"$secret_Value"'"]')
+
+          # to configure AWS 
+          aws configure set aws_access_key_id $SECRET_KEY
+          aws configure set aws_secret_access_key $SECRET_VALUE
+          aws configure set region $AWS_DEFAULT_REGION
+
+          terraform init
+          terraform destroy -auto-approve
+        fi        
+
+artifacts:
+  files:
+    - "**/*"
